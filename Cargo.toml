@@ -1,0 +1,12 @@
+[package]
+name = "chat-gpt-cli"
+version = "0.1.0"
+edition = "2021"
+authors = ["David Yurek david.a.yurek@gmail.com"]
+
+[dependencies]
+clap = { version = "4.1.13", features = ["derive"] }
+dirs = "5.0.0"
+reqwest = { version = "0.11.15", features = ["blocking"] }
+serde = { version = "1.0.158", features = ["derive"] }
+serde_json = "1.0.94"
