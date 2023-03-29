@@ -1,11 +1,12 @@
-use std::{fs::File, io::Read};
+use std::{fs::File, io::{Read, Write}};
 
+use reqwest::header::CONTENT_TYPE;
 use serde::{Deserialize, Serialize};
 
 const DEFAULT_MESSAGE_STR: &str = "Please introduce yourself, ChatGPT.";
 const DEFAULT_MODEL: &str = "gpt-3.5-turbo";
 
-#[derive(Default, Debug, Serialize, Deserialize)]
+#[derive(Default, Debug, Serialize, Deserialize, Clone)]
 pub enum Role {
     #[default]
     #[serde(rename = "user")]
@@ -16,7 +17,7 @@ pub enum Role {
     Assistant,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Message {
     pub role: Role,
     pub content: String,
@@ -39,38 +40,40 @@ pub struct Convo {
 
 impl Convo {
     pub fn fetch_or_create(name: &String) -> Result<Self, std::io::Error> {
-        if let Some(mut dir_buf) = dirs::home_dir() {
-            dir_buf.push(name);
-            if let Ok(mut file) = File::open(dir_buf.as_path()) {
-                let mut contents = String::new();
-                file.read_to_string(&mut contents)?;
-                let convo: Convo = serde_json::from_str(&contents[..])?;
-                Ok(convo)
-            } else {
-                Ok(Convo {
-                    name: name.clone(),
-                    messages: vec![],
-                })
-            }
+        let mut dir_buf = crate::util::assemble_convo_path()?;
+        dir_buf.push(name);
+        if let Ok(mut file) = File::open(dir_buf.as_path()) {
+            let mut contents = String::new();
+            file.read_to_string(&mut contents)?;
+            let convo: Convo = serde_json::from_str(&contents[..])?;
+            Ok(convo)
         } else {
-            Err(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                "Unable to find home dir.",
-            ))
+            Ok(Convo {
+                name: name.clone(),
+                messages: vec![],
+            })
         }
+    }
+
+    pub fn save(&self) -> std::io::Result<()> {
+        let mut dir_buf = crate::util::assemble_convo_path()?;
+        dir_buf.push(&self.name);
+        let mut file = std::fs::OpenOptions::new().create(true).write(true).truncate(true).open(dir_buf.as_path())?;
+        write!(file, "{}", serde_json::to_string(&self)?)?;
+        Ok(())
     }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct Usage {
+pub struct Usage {
     prompt_tokens: u32,
     completion_tokens: u32,
     total_tokens: u32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct Choice {
-    message: Message,
+pub struct Choice {
+    pub message: Message,
     finish_reason: String,
     index: u32,
 }
@@ -95,12 +98,26 @@ impl Default for ChatRequestBody {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ChatResponse {
-    id: String,
-    object: String,
-    created: u64,
-    model: String,
-    usage: Usage,
-    choices: Vec<Choice>,
+    pub id: String,
+    pub object: String,
+    pub created: u64,
+    pub model: String,
+    pub usage: Usage,
+    pub choices: Vec<Choice>,
+}
+
+impl ChatResponse {
+    pub fn from_api(json: String) -> Result<Self, Box<dyn std::error::Error>> {
+        let client = reqwest::blocking::Client::new();
+        let res = client
+            .post("https://api.openai.com/v1/chat/completions")
+            .header(CONTENT_TYPE, "application/json")
+            .bearer_auth(std::env::var("OPENAI_API_KEY").unwrap())
+            .body(json)
+            .send()?;
+
+        Ok(serde_json::from_str(&res.text()?[..])?)
+    }
 }
 
 #[cfg(test)]
