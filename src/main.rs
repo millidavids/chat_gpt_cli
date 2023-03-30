@@ -30,16 +30,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             convo.messages.push(cr.choices[0].message.clone());
             convo.save()?;
             if args.history.unwrap() == true {
-                println!("{:?}", convo.messages);
+                for message in convo.messages {
+                    println!(
+                        "---------------\nRole: {:?}\n---------------\n{}\n",
+                        message.role, message.content
+                    );
+                }
             } else {
-                println!("{:?}", convo.messages[convo.messages.len() - 1]);
+                let message = &convo.messages[convo.messages.len() - 1];
+                println!(
+                    "---------------\nRole: {:?}\n---------------\n{}\n",
+                    message.role, message.content,
+                );
             }
-        },
+        }
         (Some(convo), None) => {
             if args.history.unwrap() == true {
-                println!("{:?}", convo.messages);
+                for message in convo.messages {
+                    println!(
+                        "---------------\nRole: {:?}\n---------------\n{}\n",
+                        message.role, message.content
+                    );
+                }
             }
-        },
+        }
         (None, Some(prompt)) => {
             let crb = ChatRequestBody {
                 messages: vec![Message {
@@ -50,8 +64,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
             let crb_json = serde_json::to_string(&crb)?;
             let cr = ChatResponse::from_api(crb_json)?;
-            println!("{:?}", cr.choices[0].message);
-        },
+            println!(
+                "---------------\nRole: {:?}\n---------------\n{}\n",
+                cr.choices[0].message.role, cr.choices[0].message.content
+            );
+        }
         (None, None) => (),
     }
 
