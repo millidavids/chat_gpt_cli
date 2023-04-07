@@ -1,6 +1,6 @@
 use std::{fs::File, io::{Read, Write}};
 
-use reqwest::header::CONTENT_TYPE;
+use reqwest::{header::CONTENT_TYPE, StatusCode};
 use serde::{Deserialize, Serialize};
 
 const DEFAULT_MESSAGE_STR: &str = "Please introduce yourself, ChatGPT.";
@@ -115,6 +115,10 @@ impl ChatResponse {
             .bearer_auth(std::env::var("OPENAI_API_KEY").unwrap())
             .body(json)
             .send()?;
+        
+        if res.status() != StatusCode::OK {
+            return Err(format!("Non 200 status code: {}", res.status()).into())
+        }
 
         Ok(serde_json::from_str(&res.text()?[..])?)
     }
